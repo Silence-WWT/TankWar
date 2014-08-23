@@ -1,0 +1,109 @@
+import java.io.*;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.SocketException;
+import java.net.UnknownHostException;
+
+
+
+public class NetClient {
+	private static int Udp_Port_Start=2002;
+	private int Udp_Port = Udp_Port_Start;
+	
+	Socket s=null;
+	TankClient tc;
+	DatagramSocket ds = null;
+	TankServer ts;
+	
+	public NetClient(TankClient tc){
+		Udp_Port++;
+		this.tc = tc;
+		try {
+			ds = new DatagramSocket(Udp_Port);
+//System.out.println(Udp_Port);
+		} catch (SocketException e) {
+			e.printStackTrace();
+		}
+	}
+	public void connect(String IP,int Port){
+		try {	
+			s = new Socket(IP,Port);
+			DataOutputStream dos = new DataOutputStream(s.getOutputStream());
+			dos.writeInt(Udp_Port);
+System.out.println("Connect!");
+			DataInputStream dis = new DataInputStream(s.getInputStream());
+			int ID=dis.readInt();
+			tc.myTank.id = ID;
+		} catch (UnknownHostException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}finally{
+			if(s!=null){
+				try {
+					s.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+		TankNewMsg msg = new TankNewMsg(tc.myTank);
+		send(msg);
+		new Thread(new UdpRecvThread()).start();
+	}
+	
+	public void send(Msg msg){
+		msg.send(ds,"192.168.1.112",TankServer.UDP_Port);
+	}
+	
+	private class UdpRecvThread implements Runnable {
+		
+		byte[] buf = new byte[1024];
+		
+		public void run() {
+			
+			while(ds!=null){
+				DatagramPacket dp = new DatagramPacket(buf,buf.length);
+				try {
+					ds.receive(dp);
+//System.out.println("a packet received from Server!");
+					parse(dp);
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+			
+		}
+
+		private void parse(DatagramPacket dp) {
+			ByteArrayInputStream bais = new ByteArrayInputStream(buf,0,buf.length);
+			DataInputStream dis = new DataInputStream(bais);
+			try {
+				int msgtype = dis.readInt();
+				Msg msg = null;
+				switch(msgtype){
+				case Msg.Tank_Move_Msg:
+					msg = new TankMoveMsg(NetClient.this.tc);
+					msg.parse(dis);
+					break;
+				case Msg.Tank_New_Msg:
+					msg = new TankNewMsg(NetClient.this.tc);
+					msg.parse(dis);
+					break;
+				case Msg.Missile_New_Msg:
+					msg = new MissileNewMsg(NetClient.this.tc);
+					msg.parse(dis);
+					break;
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			
+			
+		}
+		
+	}
+	
+}

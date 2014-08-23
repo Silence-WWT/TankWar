@@ -1,0 +1,129 @@
+import java.awt.*;
+import java.util.List;
+import java.util.ArrayList;
+import java.awt.event.*;
+
+public class TankClient extends Frame{
+	int x=50,y=50;
+	public static final int GAME_WIDTH=800;
+	public static final int GAME_HEIGHT=600;
+	int level = 1;
+	
+	Tank myTank = new Tank(75,75,true,Direction.D,this);
+	//Tank enemyTank = new Tank(75,75,false,Direction.D,this);
+	Wall w1 = new Wall(200,200,48,200,this);
+	Wall w2 = new Wall(600,100,48,200,this);
+	Blood b = new Blood();
+	NetClient nc = new NetClient(this);
+	
+	
+	public static Toolkit tk = Toolkit.getDefaultToolkit();
+	
+	Image img = tk.getImage(Missile.class.getClassLoader().getResource("Images/grass.jpg"));
+	
+	List<Missile>missiles = new ArrayList<Missile>();
+	List<Explode>explodes = new ArrayList<Explode>();
+	List<Tank>tanks = new ArrayList<Tank>();
+	
+	public void paint(Graphics g) {
+	
+		g.drawString("LEVEL "+level,400,50);
+		if(tanks.size()<=0){
+			level++;
+			/*for(int i1=0;i1<5*level;i1++){
+				tanks.add(new Tank(50+(i1+1)*40,50,false,Direction.D,this));
+				
+			}*/
+		}
+		for(int i=0;i<missiles.size();i++){
+			Missile m = missiles.get(i);
+			m.hitTank(myTank);
+			m.hitTanks(tanks);
+			m.draw(g);
+			m.hitWall(w1);
+			m.hitWall(w2);
+			missiles.remove(this);
+		}
+		for(int i=0;i<explodes.size();i++){
+			Explode e = explodes.get(i);
+			e.draw(g);
+		}
+		for(int i=0;i<tanks.size();i++){
+			Tank t = tanks.get(i);
+			t.draw(g);
+			t.hitWall(w1);
+			t.hitWall(w2);
+			t.hitTanks(tanks);
+		}
+		g.drawString("Missiles Counts:"+missiles.size(), 10, 50);
+		g.drawString("Explodes Counts:"+explodes.size(), 10, 60);
+		g.drawString("Tanks Counts:"+tanks.size(), 10, 70);
+		g.drawString("Tanks Life:"+myTank.getLife(), 10, 80);
+		b.draw(g);
+		myTank.draw(g);
+		w1.draw(g);
+		w2.draw(g);
+		myTank.eatB(b);
+		
+	}
+	Image offScreenImage = null;
+	
+	public void update(Graphics g){
+		if(offScreenImage == null)
+			offScreenImage = this.createImage(GAME_WIDTH, GAME_WIDTH);
+		Graphics goff = offScreenImage.getGraphics();
+		goff.drawImage(img, 0, 0, null);
+		paint(goff);
+		g.drawImage(offScreenImage,0,0,null);
+	}
+
+	public void launchFrame(){
+		/*for(int i=0;i<10;i++){
+			tanks.add(new Tank(50+(i+1)*40,50,false,Direction.D,this));
+			
+		}*/
+		this.setLocation(50, 50);
+		this.setSize(GAME_WIDTH, GAME_HEIGHT);
+		this.setVisible(true);
+		this.setResizable(false);
+		this.addWindowListener(new WindowAdapter(){
+			public void windowClosing(WindowEvent arg0) {
+				System.exit(0);
+			}
+		});
+		this.setBackground(Color.gray);
+		this.setTitle("TankWar");
+		new Thread(new PaintThread()).start();
+		this.addKeyListener(new KeyMonitor());
+		nc.connect("192.168.1.112", 8888);
+	}
+
+	private class PaintThread implements Runnable{
+		public void run() {
+			while(true){
+				try {
+					Thread.sleep(35);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+				repaint();
+			}
+			
+		}
+		
+	}
+	private class KeyMonitor extends KeyAdapter{
+		public void keyPressed(KeyEvent e){
+			myTank.keyPressed(e);
+			}
+		public void keyReleased(KeyEvent e){
+			myTank.keyReleased(e);
+		}
+	}
+	public static void main(String[] args) {
+		TankClient tc = new TankClient();
+		tc.launchFrame();
+	}
+
+}
+
